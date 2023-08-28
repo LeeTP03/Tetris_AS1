@@ -13,7 +13,7 @@ class Tick implements Action{
         return (s.blockState.y + s.blockState.height >= 19) || (Tick.collision(s,0,1))
         ? (new BlockSave().apply(s))
         : {...s,
-            level : Math.floor(s.score / 1000),
+            level : Math.floor(s.score / 100) + 1,
             time: this.elapsed,
         blockState: {
             ...s.blockState,
@@ -111,7 +111,6 @@ class Rotate implements Action{
 
 class BlockSave implements Action{
     apply = (s : State) => {
-        s.allBlocks.push(s.blockState);
         s.blockState.blockCoords.map((coord) => {s.allCoords.push({x:coord.x, y:coord.y, color: s.blockState.color})});
         
         return {
