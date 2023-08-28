@@ -74,6 +74,10 @@ svg rect {
   background-color: rgb(218, 180, 131);
 }
 
+#svgHold {
+  background-color: rgb(218, 180, 131);
+}
+
 #info {
   width: 160px;
   margin-top: 1em;

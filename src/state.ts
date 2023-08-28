@@ -1,5 +1,5 @@
-import {State, getRandBlock} from "./main.ts"
-export {Tick, MoveLeft, MoveRight, MoveDown, Rotate, NextBlock, BlockSave, reduce}
+import {State, getRandBlock, initialBlockState, initialState, getBlockRotation} from "./main.ts"
+export {Tick, MoveLeft, MoveRight, MoveDown, Rotate, BlockSave, ResetBoard, HoldBlock, GameEnd, reduce}
 export type {Action}
 
 interface Action {
@@ -9,27 +9,58 @@ interface Action {
 class Tick implements Action{
     constructor(public readonly elapsed: number){}
 
-    apply = (s : State) => ({
-        ...s,
-        time: this.elapsed,
+    apply = (s : State) => {
+        return (s.blockState.y + s.blockState.height >= 19) || (Tick.collision(s,0,1))
+        ? (new BlockSave().apply(s))
+        : {...s,
+            level : Math.floor(s.score / 1000),
+            time: this.elapsed,
         blockState: {
             ...s.blockState,
-            y: s.blockState.y + s.blockState.height >= 20 ? s.blockState.y : s.blockState.y + 1
-        }
-    })
-
-    static collision = (s : State) => {
-        for (let i = 0; i < s.allBlocks.length; i++) {
-            if (s.blockState.x == s.allBlocks[i].x && s.blockState.y + s.blockState.height == s.allBlocks[i].y) {
-                return true
+            y: (s.blockState.y + s.blockState.height >= 19) || (Tick.collision(s,0,1)) ? s.blockState.y : s.blockState.y + 1
             }
         }
-        return false
     }
 
-    static boardOut = (s : State) => {
-        return s.blockState.y - s.blockState.height < -1
+    static overlap = (s : State, new_coords : { x:number, y:number }[] | null = null) => {
+        let truelist : boolean[] = [];
+        new_coords == null 
+        ? s.blockState.blockCoords.map((coord) => {s.allCoords.map((coord2) => {coord.x == coord2.x && coord.y == coord2.y ? truelist.push(true) : truelist.push(false)})})
+        : (new_coords.map((coord) => {s.allCoords.map((coord2) => {(coord.x == coord2.x && coord.y == coord2.y) ? truelist.push(true) : truelist.push(false)})}),
+          new_coords.map((coord) => {coord.x < 0 || coord.x > 9 || coord.y > 19 ? truelist.push(true) : truelist.push(false)}) )
+        return truelist.includes(true)
     }
+
+    static collision = (s : State, x_amount: number, y_amount: number) => {
+        let truelist : boolean[] = [];
+        s.blockState.blockCoords.map((coord) => {truelist.push(Tick.checkCoordinate(s, coord.x + x_amount, coord.y + y_amount))})
+        return truelist.includes(true)
+    }
+
+    static checkCoordinate = (s : State, coord_x : number, coord_y : number) => {
+        let truelist : boolean[] = [];
+        s.allCoords.map((coord) => {coord.x == coord_x && coord.y == coord_y ? truelist.push(true) : truelist.push(false)})
+        return truelist.includes(true)
+    }
+    
+
+    static aboveBoard = (s : State) => {
+        s.blockState.blockCoords.map((coord) => {coord.y < 0 ? s.gameEnd = true : s.gameEnd = s.gameEnd})
+    }
+
+    static checkRowFull = (s : State) => {
+        let truelist: {[key:number] : number } = {};
+        s.allCoords.map((coord) => {truelist[coord.y] == null ? truelist[coord.y] = 1 : truelist[coord.y] == 10 ? truelist[coord.y] == 0 : truelist[coord.y] += 1})
+        return truelist
+    }
+
+    static removeRow = (s : State, row: number) => {
+        let new_coords = s.allCoords.filter((coord) => coord.y != row)
+        new_coords.map((coords) => {coords.y < row ? coords.y += 1 : coords.y = coords.y})
+        s.score += 100
+        return new_coords
+    }
+
 
 }
 
@@ -38,7 +69,7 @@ class MoveLeft implements Action{
         ...s,
         blockState: {
             ...s.blockState,
-            x: s.blockState.x - s.blockState.leftWidth < -1 ? s.blockState.x : s.blockState.x - 1
+            x: (s.blockState.x - s.blockState.leftWidth < -1) || (Tick.collision(s,-1,0)) ? s.blockState.x : s.blockState.x - 1
         }
     })
 }
@@ -48,47 +79,41 @@ class MoveRight implements Action{
         ...s,
         blockState: {
             ...s.blockState,
-            x: s.blockState.x + s.blockState.rightWidth > 8 ? s.blockState.x : s.blockState.x + 1
+            x: (s.blockState.x + s.blockState.rightWidth > 8) || (Tick.collision(s,1,0)) ? s.blockState.x : s.blockState.x + 1
         }
     })
 }
 
 class MoveDown implements Action{
-    apply = (s : State) => ({
-        ...s,
+    apply = (s : State) => {
+        return (s.blockState.y + s.blockState.height >= 19) || (Tick.collision(s,0,1)) ? new BlockSave().apply(s) : {...s,
         blockState: {
             ...s.blockState,
-            y: s.blockState.y + s.blockState.height >= 19 ? s.blockState.y : s.blockState.y + 1
+            y: (s.blockState.y + s.blockState.height >= 19) || (Tick.collision(s,0,1)) ? s.blockState.y : s.blockState.y + 1
+            }
         }
-    })
+    }
 }
 
 class Rotate implements Action{
-    apply = (s : State) => ({
+    apply = (s : State) => { 
+        const blockRotation = getBlockRotation(s.blockState.type)
+        const nextRotation = blockRotation[(s.blockState.rotation + 1) % blockRotation.length]
+        const newCoords = nextRotation.map((coord) => ({x: coord.x + s.blockState.x, y: coord.y + s.blockState.y}))
+        return {
         ...s,
         blockState: {
             ...s.blockState,
-            rotation: s.blockState.rotation + 1
+            rotation: Tick.overlap(s, newCoords) ? s.blockState.rotation : s.blockState.rotation + 1
         }
-    })
-}
-
-class NextBlock implements Action{
-    apply = (s : State) => ({
-        ...s,
-        blockState: {...s.blockState,
-            x:4,
-            y:-1,
-            rotation:0,
-            type: s.nextBlock,
-        },
-        nextBlock : getRandBlock()
-    })
+    }}
 }
 
 class BlockSave implements Action{
     apply = (s : State) => {
-        s.allBlocks.push(s.blockState)
+        s.allBlocks.push(s.blockState);
+        s.blockState.blockCoords.map((coord) => {s.allCoords.push({x:coord.x, y:coord.y, color: s.blockState.color})});
+        
         return {
         ...s,
         blockState: {...s.blockState,
@@ -99,6 +124,34 @@ class BlockSave implements Action{
         },
         nextBlock : getRandBlock()
     }}
+}
+
+class ResetBoard implements Action{
+    apply(s: State): State {
+        console.log(s.allCoords)
+        return initialState
+    }
+}
+
+class HoldBlock implements Action{
+    apply(s: State): State {
+        return {...s,
+            blockState: {...s.blockState,
+            type : s.holdBlock,
+        }
+        ,
+        holdBlock : s.blockState.type,
+            
+        }
+    }
+}
+
+class GameEnd implements Action{
+    apply(s: State): State {
+        return {...s,
+            gameEnd : true,
+        }
+    }
 }
 
 const reduce = (s: State, a: Action): State => a.apply(s);

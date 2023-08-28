@@ -8,12 +8,15 @@
       <svg id="svgCanvas">
         <!-- game over text box -->
         <g id="gameOver" visibility="hidden">
-          <rect x="26" y="120" fill="white" height="48" width="149"></rect>
+          <rect id="gameOverRect" x="26" y="120" fill="white" height="48" width="149"></rect>
           <text x="36" y="150">Game Over</text>
         </g>
       </svg>
       <div id="sideBar" class="flex col">
+        <p style="margin: 0px;">Next</p>
         <svg id="svgPreview"></svg>
+        <p style="margin: 0px;">Hold</p>
+        <svg id="svgHold"></svg>
         <div id="info" class="flex col">
           <div class="text">
             <span class="left">Level: </span>

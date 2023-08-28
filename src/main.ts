@@ -16,11 +16,11 @@ import "./style.css";
 
 import { fromEvent, interval, merge, from } from "rxjs";
 import { map, filter, scan, take, takeWhile } from "rxjs/operators";
-import {Tick, MoveDown, MoveLeft, MoveRight, NextBlock, BlockSave, Rotate} from "./state.ts"
+import {Tick, MoveDown, MoveLeft, MoveRight, BlockSave, Rotate, HoldBlock, GameEnd, ResetBoard} from "./state.ts"
 import type {Action} from "./state.ts"
 
 export type {State}
-export {getRandBlock}
+export {getRandBlock, initialBlockState, initialState, getBlockRotation}
 
 /** Constants */
 
@@ -42,9 +42,10 @@ const Block = {
   HEIGHT: Viewport.CANVAS_HEIGHT / Constants.GRID_HEIGHT,
 };
 
+
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD" | "KeyW" | "Space";
+type Key = "KeyS" | "KeyA" | "KeyD" | "KeyW" | "Space" | "KeyR" | "KeyH";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -56,13 +57,63 @@ const getRandBlock = () => {
   const rand = Math.floor(Math.random() * blockTypes.length);
   return blockTypes[rand] ;
 }
+
+
+const getBlockRotation = (blockType : string) => {
+  const blockTypes = ["lBlock", "tBlock", "iBlock", "jBlock", "sBlock", "zBlock", "oBlock"]
+  
+  const zBlockRotation = [
+    [{x: 0, y: 1}, {x: 1, y: 1}, {x: 1, y: 2}, {x: 2, y: 2}],
+    [{x: 1, y: 1}, {x: 2, y: 1}, {x: 1, y: 2}, {x: 2, y: 0}]
+    ];
+  
+    const sBlockRotation = [
+      [{x: 0, y: 2}, {x: 1, y: 2}, {x: 1, y: 1}, {x: 2, y: 1}],
+      [{x: 1, y: 1}, {x: 2, y: 1}, {x: 2, y: 2}, {x: 1, y: 0}]
+    ];
+  
+    const iBlockRotation = [
+      [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x:3, y: 0}],
+      [{x: 1, y: -1}, {x: 1, y: 0}, {x: 1, y: 1}, {x:1, y: 2}]
+    ];
+  
+    const tBlockRotation = [
+      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:1, y: 2}],
+      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:0, y: 1}],
+      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:1, y: 0}],
+      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:2, y: 1}]
+    ];
+  
+    const lBlockRotation = [
+      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:2, y: 2}],
+      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:0, y: 2}],
+      [{x: 0, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x:2, y: 1}],
+      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:2, y: 0}]
+    ];
+  
+    const jBlockRotation = [
+      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 0, y: 2}, {x:2, y: 1}],
+      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:0, y: 0}],
+      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:2, y: 0}],
+      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:2, y: 2}],
+    ];
+
+    const oBlockRotation = [
+      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 0, y: 2}, {x:1, y: 2}],
+    ];
+    
+    const blockFunc = [lBlockRotation, tBlockRotation, iBlockRotation, jBlockRotation, sBlockRotation, zBlockRotation, oBlockRotation];
+    return blockFunc[blockTypes.indexOf(blockType)];
+  }
 /** State processing */
 
 type State = {
   gameEnd: boolean;
   allBlocks: BlockState[];
+  allCoords: {x: number, y: number, color: string}[];
   blockState: BlockState;
   nextBlock: string;
+  holdBlock: string;
   time: number;
   score: number;
   level: number;
@@ -78,14 +129,17 @@ const initialBlockState: BlockState = {
   leftWidth: 1,
   rightWidth: 1,
   type : getRandBlock(),
-  rotationPoint : 1,
+  blockCoords: [],
+  color: "",
 } as const;
 
 const initialState: State = {
   gameEnd: false,
   time: 0,
   allBlocks: [],
+  allCoords: [],
   blockState: initialBlockState,
+  holdBlock: getRandBlock(),
   nextBlock: getRandBlock(),
   score: 0,
   level: 0,
@@ -100,8 +154,9 @@ type BlockState = {
   height: number;
   leftWidth: number;
   rightWidth: number;
-  rotationPoint: number;
   startHeight?: number;
+  color: string;
+  blockCoords: {x: number, y: number}[];
 };
 
 
@@ -164,6 +219,8 @@ export function main() {
     HTMLElement;
   const preview = document.querySelector("#svgPreview") as SVGGraphicsElement &
     HTMLElement;
+  const hold = document.querySelector("#svgHold") as SVGGraphicsElement &
+    HTMLElement;
   const gameover = document.querySelector("#gameOver") as SVGGraphicsElement &
     HTMLElement;
   const container = document.querySelector("#main") as HTMLElement;
@@ -172,6 +229,8 @@ export function main() {
   svg.setAttribute("width", `${Viewport.CANVAS_WIDTH}`);
   preview.setAttribute("height", `${Viewport.PREVIEW_HEIGHT}`);
   preview.setAttribute("width", `${Viewport.PREVIEW_WIDTH}`);
+  hold.setAttribute("height", `${Viewport.PREVIEW_HEIGHT}`);
+  hold.setAttribute("width", `${Viewport.PREVIEW_WIDTH}`);
 
   // Text fields
   const levelText = document.querySelector("#levelText") as HTMLElement;
@@ -190,7 +249,9 @@ export function main() {
   const right$ = fromKey("KeyD").pipe(map(() => new MoveRight()));
   const down$ = fromKey("KeyS").pipe(map(() => new MoveDown()));
   const up$ = fromKey("KeyW").pipe(map(() => new Rotate()));
-  const next$ = fromKey("Space").pipe(map(() => new NextBlock()));
+  const reset$ = fromKey("KeyR").pipe(map(() => new ResetBoard()));
+  const hold$ = fromKey("KeyH").pipe(map(() => new HoldBlock()));
+  // const next$ = fromKey("Space").pipe(map(() => new NextBlock()));
 
   /** Observables */
 
@@ -198,46 +259,6 @@ export function main() {
   const tick$ = interval(Constants.TICK_RATE_MS).pipe(
     map((elapsed) => new Tick(elapsed))
   );
-
-  //Block Rotations
-
-  const zBlockRotation = [
-  [{x: 0, y: 1}, {x: 1, y: 1}, {x: 1, y: 2}, {x: 2, y: 2}],
-  [{x: 1, y: 1}, {x: 2, y: 1}, {x: 1, y: 2}, {x: 2, y: 0}]
-  ];
-
-  const sBlockRotation = [
-    [{x: 0, y: 2}, {x: 1, y: 2}, {x: 1, y: 1}, {x: 2, y: 1}],
-    [{x: 1, y: 1}, {x: 2, y: 1}, {x: 2, y: 2}, {x: 1, y: 0}]
-  ];
-
-  const iBlockRotation = [
-    [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x:3, y: 0}],
-    [{x: 1, y: -1}, {x: 1, y: 0}, {x: 1, y: 1}, {x:1, y: 2}]
-  ];
-
-  const tBlockRotation = [
-    [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:1, y: 2}],
-    [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:0, y: 1}],
-    [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:1, y: 0}],
-    [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:2, y: 1}]
-  ];
-
-  const lBlockRotation = [
-    [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:2, y: 2}],
-    [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:0, y: 2}],
-    [{x: 0, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x:2, y: 1}],
-    [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:2, y: 0}]
-  ];
-
-  const jBlockRotation = [
-    [{x: 0, y: 1}, {x: 1, y: 1}, {x: 0, y: 2}, {x:2, y: 1}],
-    [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:0, y: 0}],
-    [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:2, y: 0}],
-    [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:2, y: 2}],
-  ];
-
-
 
   
   /**
@@ -249,8 +270,12 @@ export function main() {
    */
   const render = (s: State) => {
     // Add blocks to the main grid canvas
-    svg.innerHTML = ""
+
+
+    // svg.innerHTML = ""
+    svg.querySelectorAll("rect").forEach((elem) => elem.getAttribute("id") == "gameOverRect" ? null : elem.remove());
     preview.innerHTML = "";
+    hold.innerHTML = "";
       
 
     const createCube = (x:number ,y:number, color:string, svgblock : SVGGraphicsElement & HTMLElement = svg) => {
@@ -272,20 +297,27 @@ export function main() {
       blockState.height = 2;
       blockState.leftWidth = 2;
       blockState.rightWidth = 1;
+      blockState.color = "green";
+      blockState.blockCoords = [{x: blockState.x, y: blockState.y+1}, {x: blockState.x + 1, y: blockState.y+1}, {x: blockState.x , y: blockState.y + 2}, {x: blockState.x + 1, y: blockState.y + 2}];
     };
 
     const createIBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+      const iBlockRotation = getBlockRotation("iBlock");
       const rotationState = iBlockRotation[blockState.rotation % iBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
       rotationState.forEach((cube) => {
         createCube(blockState.x + cube.x, blockState.y + cube.y, "blue", svgblock);
       });
       blockState.rotation % 2 == 0 
       ? (blockState.height = 0, blockState.leftWidth = 2, blockState.rightWidth = 3) 
       : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 1)
+      blockState.color = "blue";
     };
 
     const createTBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+      const tBlockRotation = getBlockRotation("tBlock");
       const rotationState = tBlockRotation[blockState.rotation % tBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
       rotationState.forEach((cube) => {
         createCube(blockState.x + cube.x, blockState.y + cube.y, "purple", svgblock);
       });
@@ -296,10 +328,13 @@ export function main() {
       : blockState.rotation % 4 == 2
       ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 2)
       : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
+      blockState.color = "purple";
     };
 
     const createLBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+      const lBlockRotation = getBlockRotation("lBlock");
       const rotationState = lBlockRotation[blockState.rotation % lBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
       rotationState.forEach((cube) => {
         createCube(blockState.x + cube.x, blockState.y + cube.y, "orange", svgblock);
       });
@@ -310,10 +345,13 @@ export function main() {
       : blockState.rotation % 4 == 2
       ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 2)
       : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
+      blockState.color = "orange";
     };
 
     const createJBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+      const jBlockRotation = getBlockRotation("jBlock");
       const rotationState = jBlockRotation[blockState.rotation % jBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
       rotationState.forEach((cube) => {
         createCube(blockState.x + cube.x, blockState.y + cube.y, "cyan", svgblock);
       });
@@ -324,68 +362,89 @@ export function main() {
       : blockState.rotation % 4 == 2
       ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 2)
       : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
+      blockState.color = "cyan";
     };
 
     const createZBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+      const zBlockRotation = getBlockRotation("zBlock");
       const rotationState = zBlockRotation[blockState.rotation % zBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
       rotationState.forEach((cube) => {
         createCube(blockState.x + cube.x, blockState.y + cube.y, "yellow", svgblock);
       });
       blockState.rotation % 2 == 0 
       ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2) 
       : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
+      blockState.color = "yellow";
     };
 
     const createSBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+      const sBlockRotation = getBlockRotation("sBlock");
       const rotationState = sBlockRotation[blockState.rotation % sBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
       rotationState.forEach((cube) => {
         createCube(blockState.x + cube.x, blockState.y + cube.y, "red", svgblock);
       });
       blockState.rotation % 2 == 0 
       ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2) 
       :(blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
+      blockState.color = "red";
     };
 
     const staticBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement ) => {
       const blockTypes = ["lBlock", "tBlock", "iBlock", "oBlock", "jBlock", "sBlock", "zBlock"]
-      const blockFunc = [createOBlock, createIBlock, createTBlock, createLBlock, createJBlock, createSBlock, createZBlock];
+      const blockFunc = [createLBlock, createTBlock, createIBlock, createOBlock, createJBlock, createSBlock, createZBlock];
       blockFunc[blockTypes.indexOf(blockState.type)](blockState, svgblock);
     }
 
     const createBlock = (s : State) => {
       const blockTypes = ["lBlock", "tBlock", "iBlock", "oBlock", "jBlock", "sBlock", "zBlock"]
-      const blockFunc = [createOBlock, createIBlock, createTBlock, createLBlock, createJBlock, createSBlock, createZBlock];
+      const blockFunc = [createLBlock, createTBlock, createIBlock, createOBlock, createJBlock, createSBlock, createZBlock];
       blockFunc[blockTypes.indexOf(s.blockState.type)](s.blockState, svg);
     }
     createBlock(s);
 
-    s.allBlocks.forEach((block) => {
-      staticBlock(block, svg);
+    // s.allBlocks.forEach((block) => {
+    //   staticBlock(block, svg);
+    // });
+     
+    s.allCoords.map((coord) => {
+      createCube(coord.x, coord.y, coord.color, svg);
     });
 
-    staticBlock({x: 2, y: 0, startHeight: 0, rotation: 0, type: s.nextBlock, height: 0, leftWidth: 0, rightWidth: 0, rotationPoint: 0}, preview)
-    
+    staticBlock({x: 2, y: 0, startHeight: 0, rotation: 0, type: s.nextBlock, height: 0, color: "", leftWidth: 0, rightWidth: 0, blockCoords: []}, preview)
+    staticBlock({x: 2, y: 0, startHeight: 0, rotation: 0, type: s.holdBlock, height: 0, color: "", leftWidth: 0, rightWidth: 0, blockCoords: []}, hold)
     
   };
 
-  const source$ = merge(tick$, left$, right$, down$, up$, next$)
+  const source$ = merge(tick$, left$, right$, down$, up$, reset$, hold$)
     .pipe(scan((s: State, a: Action) => (a.apply(s)), initialState),
     takeWhile((s: State) => !s.gameEnd))
     .subscribe((s: State) => {
-      Tick.collision(s) ? (
-        Tick.boardOut(s) ? s.gameEnd = true : s.gameEnd = false,
-        new BlockSave().apply(s),
-        s.blockState = {...initialBlockState,
-        type: s.nextBlock},
-        s.nextBlock = getRandBlock()) : s.blockState = s.blockState;
-      console.log(s.time, s.blockState);
-      console.log(s.allBlocks)
+
+      let dictionary = Tick.checkRowFull(s)
+
+      for(let key in dictionary){
+        if (dictionary.hasOwnProperty(key)){
+          if (dictionary[key] == 10){
+            s.allCoords = Tick.removeRow(s, parseInt(key));
+          }
+      }}
+
       render(s);
-      s.blockState.height + s.blockState.y >= 19 ? (new BlockSave().apply(s), s.blockState = {...initialBlockState, type: s.nextBlock}, s.nextBlock = getRandBlock()) : s.blockState = s.blockState;
-      levelText.innerHTML = `${s.gameEnd}`;
+
+      s.blockState.height + s.blockState.y >= 19 
+      ? (new BlockSave().apply(s), s.blockState = {...initialBlockState, type: s.nextBlock}, s.nextBlock = getRandBlock())
+      : s.blockState = s.blockState;
+
+      Tick.overlap(s) ? (s.gameEnd = true) : s.gameEnd = s.gameEnd;
+
+
+      levelText.innerHTML = `${s.level}`;
       scoreText.innerHTML = `${s.score}`;
       highScoreText.innerHTML = `${s.highScore}`;
-      timeText.innerHTML = `${Math.round(s.time/2)}`;
+      timeText.innerHTML = `${Math.floor(s.time/119)}:${Math.round(s.time/2)%60}`;
+
       if (s.gameEnd) {
         show(gameover);
       } else {
