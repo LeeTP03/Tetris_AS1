@@ -73,8 +73,8 @@ const getBlockRotation = (blockType : string) => {
     ];
   
     const iBlockRotation = [
-      [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x:3, y: 0}],
-      [{x: 1, y: -1}, {x: 1, y: 0}, {x: 1, y: 1}, {x:1, y: 2}]
+      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:3, y: 1}],
+      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:1, y: 3}]
     ];
   
     const tBlockRotation = [
@@ -313,8 +313,8 @@ export function main() {
         createCube(blockState.x + cube.x, blockState.y + cube.y, "blue", svgblock);
       });
       blockState.rotation % 2 == 0 
-      ? (blockState.height = 0, blockState.leftWidth = 2, blockState.rightWidth = 3) 
-      : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 1)
+      ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 3) 
+      : (blockState.height = 3, blockState.leftWidth = 1, blockState.rightWidth = 1)
       blockState.color = "blue";
     };
 
@@ -428,19 +428,25 @@ export function main() {
 
   const source$ = merge(tick$, left$, right$, down$, up$, reset$, hold$)
     .pipe(scan((s: State, a: Action) => (a.apply(s)), initialState),
-    takeWhile((s: State) => !s.gameEnd))
+    // takeWhile((s: State) => !s.gameEnd)
+    )
     .subscribe((s: State) => {
       
       //checks if a row is full and removes it if it is
-      let dictionary = Tick.checkRowFull(s)
+      if (s.gameEnd == false){
+        let dictionary = Tick.checkRowFull(s)
 
-      for(let key in dictionary){
-        if (dictionary.hasOwnProperty(key)){
-          if (dictionary[key] == 10){
-            s.allCoords = Tick.removeRow(s, parseInt(key));
-          }
-      }}
-      
+        for(let key in dictionary){
+          if (dictionary.hasOwnProperty(key)){
+            if (dictionary[key] == 10){
+              s.allCoords = Tick.removeRow(s, parseInt(key));
+            }
+        }}
+      }
+
+      if(s.score > s.highScore){
+        s.highScore = s.score;
+        }      
       
       //re-renders board
       render(s);

@@ -14,7 +14,7 @@ class Tick implements Action{
         ? (new BlockSave().apply(s))
         : {...s,
             level : Math.floor(s.score / 100) + 1,
-            time: this.elapsed,
+            time: s.time += 0.5,
         blockState: {
             ...s.blockState,
             y: (s.blockState.y + s.blockState.height >= 19) || (Tick.collision(s,0,1)) ? s.blockState.y : s.blockState.y + 1
@@ -127,14 +127,29 @@ class BlockSave implements Action{
 
 class ResetBoard implements Action{
     apply(s: State): State {
-        console.log(s.allCoords)
-        return initialState
+        return {
+            ...s,
+            allCoords : [],
+            blockState: {...initialBlockState,
+                type : getRandBlock(),},
+            score : 0,
+            level : 1,
+            time : 0,
+            gameEnd : false,
+            nextBlock : getRandBlock(),
+            holdBlock : getRandBlock(),
+
+        }
     }
 }
 
 class HoldBlock implements Action{
     apply(s: State): State {
-        return {...s,
+
+        const new_coords = getBlockRotation(s.holdBlock)[0].map((coord) => ({x: coord.x + s.blockState.x, y: coord.y + s.blockState.y}))
+        return Tick.overlap(s, new_coords) 
+        ? s 
+        : {...s,
             blockState: {...s.blockState,
             type : s.holdBlock,
         }
