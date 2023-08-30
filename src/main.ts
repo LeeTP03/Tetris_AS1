@@ -16,11 +16,11 @@ import "./style.css";
 
 import { fromEvent, interval, merge, from } from "rxjs";
 import { map, filter, scan, take, takeWhile } from "rxjs/operators";
-import {Tick, MoveDown, MoveLeft, MoveRight, BlockSave, Rotate, HoldBlock, GameEnd, ResetBoard} from "./state.ts"
+import {Tick, MoveDown, MoveLeft, MoveRight, BlockSave, Rotate, HoldBlock, GameEnd, IncreaseLevel, AlterBoard,  ResetBoard} from "./state.ts"
 import type {Action} from "./state.ts"
 
 export type {State}
-export {getRandBlock, initialBlockState, initialState, getBlockRotation}
+export {getRandBlock, initialBlockState, initialState, generateRandom, getBlockRotation}
 
 /** Constants */
 
@@ -52,13 +52,21 @@ type Event = "keydown" | "keyup" | "keypress";
 type Blocks = "lBlock" | "tBlock" | "iBlock" | "oBlock" | "jBlock" | "sBlock" | "zBlock";
 
 /** Utility functions */
-const getRandBlock = () => {
+const getRandBlock = (seed : number) => {
   const blockTypes = ["lBlock", "tBlock", "iBlock", "oBlock", "jBlock", "sBlock", "zBlock"]
-  const rand = Math.floor(Math.random() * blockTypes.length);
+  const rand = Math.floor(seed % blockTypes.length);
   return blockTypes[rand] ;
 }
 
+const generateRandom = (seed : number) => {
+  const a = 1103515245;
+  const c = 12345;
+  const m = 2 ** 31;
 
+  return Math.floor((a * seed + c) % m);
+};
+
+//returns the rotation states for each block according to Nintendo's Tetris rotation system
 const getBlockRotation = (blockType : string) => {
   const blockTypes = ["lBlock", "tBlock", "iBlock", "jBlock", "sBlock", "zBlock", "oBlock"]
   
@@ -109,8 +117,8 @@ const getBlockRotation = (blockType : string) => {
 
 type State = {
   gameEnd: boolean;
-  allBlocks: BlockState[];
-  allCoords: {x: number, y: number, color: string}[];
+  totalPlaced : number;
+  allCoords: readonly {x: number, y: number, color: string}[];
   blockState: BlockState;
   nextBlock: string;
   holdBlock: string;
@@ -124,11 +132,10 @@ const initialBlockState: BlockState = {
   x: 4,
   y: -1,
   rotation: 0,
-  startHeight: 0,
   height: 1,
   leftWidth: 1,
   rightWidth: 1,
-  type : getRandBlock(),
+  type : getRandBlock(generateRandom(0)),
   blockCoords: [],
   color: "",
 } as const;
@@ -136,11 +143,11 @@ const initialBlockState: BlockState = {
 const initialState: State = {
   gameEnd: false,
   time: 0,
-  allBlocks: [],
+  totalPlaced : 0,
   allCoords: [],
   blockState: initialBlockState,
-  holdBlock: getRandBlock(),
-  nextBlock: getRandBlock(),
+  holdBlock: getRandBlock(generateRandom(2)),
+  nextBlock: getRandBlock(generateRandom(4)),
   score: 0,
   level: 1,
   highScore: 0,
@@ -154,9 +161,8 @@ type BlockState = {
   height: number;
   leftWidth: number;
   rightWidth: number;
-  startHeight?: number;
   color: string;
-  blockCoords: {x: number, y: number}[];
+  blockCoords: readonly {x: number, y: number}[];
 };
 
 
@@ -270,7 +276,6 @@ export function main() {
    */
   const render = (s: State) => {
     // Add blocks to the main grid canvas
-
 
     //clears the svg so that blocks that have been drawn previously wont stay when we redraw
     svg.querySelectorAll("rect").forEach((elem) => elem.getAttribute("id") == "gameOverRect" ? null : elem.remove());
@@ -420,33 +425,32 @@ export function main() {
       createCube(coord.x, coord.y, coord.color, svg);
     });
 
+    // console.log(s.hardBlock)
+
     //creates the preview and hold blocks
-    staticBlock({x: 2, y: 0, startHeight: 0, rotation: 0, type: s.nextBlock, height: 0, color: "", leftWidth: 0, rightWidth: 0, blockCoords: []}, preview)
-    staticBlock({x: 2, y: 0, startHeight: 0, rotation: 0, type: s.holdBlock, height: 0, color: "", leftWidth: 0, rightWidth: 0, blockCoords: []}, hold)
+    staticBlock({x: 2, y: 0, rotation: 0, type: s.nextBlock, height: 0, color: "", leftWidth: 0, rightWidth: 0, blockCoords: []}, preview)
+    staticBlock({x: 2, y: 0, rotation: 0, type: s.holdBlock, height: 0, color: "", leftWidth: 0, rightWidth: 0, blockCoords: []}, hold)
     
   };
 
   const source$ = merge(tick$, left$, right$, down$, up$, reset$, hold$)
-    .pipe(scan((s: State, a: Action) => (a.apply(s)), initialState),
-    // takeWhile((s: State) => !s.gameEnd)
+    .pipe(scan((s: State, a: Action) => (a.apply(s)), initialState) 
     )
     .subscribe((s: State) => {
       
       //checks if a row is full and removes it if it is
       if (s.gameEnd == false){
-        let dictionary = Tick.checkRowFull(s)
+        const dictionary = Tick.checkRowFull(s)
 
-        for(let key in dictionary){
-          if (dictionary.hasOwnProperty(key)){
-            if (dictionary[key] == 10){
-              s.allCoords = Tick.removeRow(s, parseInt(key));
-            }
-        }}
+        Object.entries(dictionary).map((item) => {
+          item[1] == 10 ? s.allCoords = Tick.removeRow(s, parseInt(item[0])) : null})
       }
 
-      if(s.score > s.highScore){
-        s.highScore = s.score;
-        }      
+      //increases level every 1000 score
+      Math.floor(s.score / 500) + 1 > s.level ? new IncreaseLevel().apply(s) : null;
+
+      //sets highscore if current score is higher
+      s.score > s.highScore ? s.highScore = s.score : s.highScore = s.highScore;   
       
       //re-renders board
       render(s);
@@ -459,7 +463,7 @@ export function main() {
       levelText.innerHTML = `${s.level}`;
       scoreText.innerHTML = `${s.score}`;
       highScoreText.innerHTML = `${s.highScore}`;
-      timeText.innerHTML = `${Math.floor(s.time/((60*2)/(s.level)-1))}:${Math.round(s.time/2/s.level)%60}`;
+      timeText.innerHTML = `${Math.floor(s.time/((60*2)))}:${Math.round(s.time)%60}`;
 
       if (s.gameEnd) {
         show(gameover);

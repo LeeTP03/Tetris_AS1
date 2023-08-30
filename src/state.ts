@@ -1,5 +1,6 @@
-import {State, getRandBlock, initialBlockState, initialState, getBlockRotation} from "./main.ts"
-export {Tick, MoveLeft, MoveRight, MoveDown, Rotate, BlockSave, ResetBoard, HoldBlock, GameEnd, reduce}
+import { merge } from "rxjs";
+import {State, getRandBlock, initialBlockState, initialState, getBlockRotation, generateRandom} from "./main.ts"
+export {Tick, MoveLeft, MoveRight, MoveDown, Rotate, BlockSave, ResetBoard, HoldBlock, GameEnd, IncreaseLevel, AlterBoard, reduce}
 export type {Action}
 
 interface Action {
@@ -13,7 +14,6 @@ class Tick implements Action{
         return (s.blockState.y + s.blockState.height >= 19) || (Tick.collision(s,0,1))
         ? (new BlockSave().apply(s))
         : {...s,
-            level : Math.floor(s.score / 100) + 1,
             time: s.time += 0.5,
         blockState: {
             ...s.blockState,
@@ -32,33 +32,32 @@ class Tick implements Action{
     }
 
     static collision = (s : State, x_amount: number, y_amount: number) => {
-        let truelist : boolean[] = [];
-        s.blockState.blockCoords.map((coord) => {truelist.push(Tick.checkCoordinate(s, coord.x + x_amount, coord.y + y_amount))})
+        const truelist : boolean[] = s.blockState.blockCoords.map((coord) => {return (Tick.checkCoordinate(s, coord.x + x_amount, coord.y + y_amount))})
         return truelist.includes(true)
     }
 
     static checkCoordinate = (s : State, coord_x : number, coord_y : number) => {
-        let truelist : boolean[] = [];
-        s.allCoords.map((coord) => {coord.x == coord_x && coord.y == coord_y ? truelist.push(true) : truelist.push(false)})
+        const truelist : boolean[] = s.allCoords.map((coord) => coord.x == coord_x && coord.y == coord_y)
         return truelist.includes(true)
-    }
-    
-
-    static aboveBoard = (s : State) => {
-        s.blockState.blockCoords.map((coord) => {coord.y < 0 ? s.gameEnd = true : s.gameEnd = s.gameEnd})
     }
 
     static checkRowFull = (s : State) => {
         let truelist: {[key:number] : number } = {};
-        s.allCoords.map((coord) => {truelist[coord.y] == null ? truelist[coord.y] = 1 : truelist[coord.y] == 10 ? truelist[coord.y] == 0 : truelist[coord.y] += 1})
+        s.allCoords.map((coord) => {truelist[coord.y] == null ? truelist[coord.y] = 1 : truelist[coord.y] += 1})
+
+        // const dictMap = new Map(s.allCoords.map((coord) => [coord.y, 1]))
         return truelist
     }
 
-    static removeRow = (s : State, row: number) => {
-        let new_coords = s.allCoords.filter((coord) => coord.y != row)
-        new_coords.map((coords) => {coords.y < row ? coords.y += 1 : coords.y = coords.y})
-        s.score += 100
-        return new_coords
+    static removeRow = (s : State, row: number) : {x:number, y:number, color:string}[] => {
+        const new_coords = s.allCoords.filter((coord) => {return coord.y != row})
+        const new_A = new_coords.map((coords) => coords.y < row ? {x : coords.x ,y : coords.y += 1, color: coords.color} : coords)
+        s.score += Math.floor(100 * (s.level * (s.time * 0.01)))
+        return new_A
+    }
+
+    static addRow = (s : State) => {
+        s.allCoords.map((coords) => {coords.y -= 1; return coords})
     }
 
 
@@ -100,6 +99,7 @@ class Rotate implements Action{
         const blockRotation = getBlockRotation(s.blockState.type)
         const nextRotation = blockRotation[(s.blockState.rotation + 1) % blockRotation.length]
         const newCoords = nextRotation.map((coord) => ({x: coord.x + s.blockState.x, y: coord.y + s.blockState.y}))
+        
         return {
         ...s,
         blockState: {
@@ -111,17 +111,41 @@ class Rotate implements Action{
 
 class BlockSave implements Action{
     apply = (s : State) => {
-        s.blockState.blockCoords.map((coord) => {s.allCoords.push({x:coord.x, y:coord.y, color: s.blockState.color})});
-        
+        //generate random number for empty block on extra difficulty row
+        const rand = generateRandom(s.time) % 8
+
+        s.allCoords = [...s.allCoords, ...s.blockState.blockCoords.map((coord) => ({
+            x: coord.x,
+            y: coord.y,
+            color: s.blockState.color,
+        }))];
+        // s.blockState.blockCoords.map((coords) => {s.allCoords = {...s.allCoords, {x: coords.x, y: coord.y, color: s.blockState.color}}})
+        //adds difficulty row to all coords
+        // s.blockState.blockCoords.map((coord) => {s.allCoords.push({x:coord.x, y:coord.y, color: s.blockState.color})});
+        console.log(s.totalPlaced+1, s.totalPlaced % Math.max(15-s.level , 2))
+
+        //checks if row should be added on this block placement, interval between rows is affected by level, higher level = higher difficulty
+        //because interval between rows being added is smaller. Minimum 2 block placements between rows being added
+        s.totalPlaced % Math.max(15-s.level , 2) == 0 
+        ? (Tick.addRow(s),
+            Array.from(Array(10).keys()).map((num) => num != rand 
+            ? s.allCoords = [...s.allCoords, {x:num, y:19, color: "grey"}]
+            //s.allCoords.push({x:num, y:19, color: "grey"})
+            : null))
+        : null
+
+        //
+
         return {
         ...s,
+        totalPlaced : s.totalPlaced += 1,
         blockState: {...s.blockState,
             x:4,
             y:-1,
             rotation:0,
             type: s.nextBlock,
         },
-        nextBlock : getRandBlock()
+        nextBlock : getRandBlock(generateRandom(s.time))
     }}
 }
 
@@ -131,13 +155,13 @@ class ResetBoard implements Action{
             ...s,
             allCoords : [],
             blockState: {...initialBlockState,
-                type : getRandBlock(),},
+                type : getRandBlock(generateRandom(s.time)),},
             score : 0,
             level : 1,
             time : 0,
             gameEnd : false,
-            nextBlock : getRandBlock(),
-            holdBlock : getRandBlock(),
+            nextBlock : getRandBlock(generateRandom(s.time+1)),
+            holdBlock : getRandBlock(generateRandom(s.time+2)),
 
         }
     }
@@ -146,19 +170,39 @@ class ResetBoard implements Action{
 class HoldBlock implements Action{
     apply(s: State): State {
 
-        const new_coords = getBlockRotation(s.holdBlock)[0].map((coord) => ({x: coord.x + s.blockState.x, y: coord.y + s.blockState.y}))
-        return Tick.overlap(s, new_coords) 
-        ? s 
+        const new_coords = getBlockRotation(s.holdBlock)[0].map((coord) => (
+            {x: coord.x + s.blockState.x, y: coord.y + s.blockState.y}
+            ))
+
+        return Tick.overlap(s, new_coords) ? s 
         : {...s,
             blockState: {...s.blockState,
             type : s.holdBlock,
-        }
-        ,
+        },
         holdBlock : s.blockState.type,
             
         }
     }
 }
+
+class IncreaseLevel implements Action{
+    apply(s: State): State {
+        return {...s,
+            level : s.level += 1,
+        }
+    }
+}
+
+class AlterBoard implements Action{
+    constructor(public readonly row : number){}
+    apply(s: State): State {
+        const new_coords = Tick.removeRow(s, this.row)
+        return {...s,
+            allCoords : new_coords,
+        }
+    }
+}
+
 
 class GameEnd implements Action{
     apply(s: State): State {
