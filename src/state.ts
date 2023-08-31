@@ -32,7 +32,9 @@ class Tick implements Action{
     }
 
     static collision = (s : State, x_amount: number, y_amount: number) => {
-        const truelist : boolean[] = s.blockState.blockCoords.map((coord) => {return (Tick.checkCoordinate(s, coord.x + x_amount, coord.y + y_amount))})
+        const truelist : boolean[] = s.blockState.blockCoords.map((coord) => {
+            return (Tick.checkCoordinate(s, coord.x + x_amount, coord.y + y_amount))
+        })
         return truelist.includes(true)
     }
 
@@ -41,18 +43,26 @@ class Tick implements Action{
         return truelist.includes(true)
     }
 
-    static checkRowFull = (s : State) => {
-        let truelist: {[key:number] : number } = {};
-        s.allCoords.map((coord) => {truelist[coord.y] == null ? truelist[coord.y] = 1 : truelist[coord.y] += 1})
+    // static checkRowFull = (s : State) => {
+    //     let truelist: {[key:number] : number } = {};
+    //     s.allCoords.map((coord) => {truelist[coord.y] == null ? truelist[coord.y] = 1 : truelist[coord.y] += 1})
 
-        // const dictMap = new Map(s.allCoords.map((coord) => [coord.y, 1]))
-        return truelist
-    }
+    //     // const dictMap = new Map(s.allCoords.map((coord) => [coord.y, 1]))
+    //     return truelist
+    // }
+
+    static checkRowFull = (s: State) => {
+        const coordRowDict = s.allCoords.reduce((acc : {[key:number] : number }, coord) => {
+            return { ...acc, [coord.y]: (acc[coord.y] || 0) + 1 };
+        }, {});
+    
+        return coordRowDict;
+    };
 
     static removeRow = (s : State, row: number) : {x:number, y:number, color:string}[] => {
         const new_coords = s.allCoords.filter((coord) => {return coord.y != row})
         const new_A = new_coords.map((coords) => coords.y < row ? {x : coords.x ,y : coords.y += 1, color: coords.color} : coords)
-        s.score += Math.floor(100 * (s.level * (s.time * 0.01)))
+        s.score += Math.floor(100 * (s.level ))
         return new_A
     }
 
@@ -114,15 +124,12 @@ class BlockSave implements Action{
         //generate random number for empty block on extra difficulty row
         const rand = generateRandom(s.time) % 8
 
+        //adds current blockState coordinates to allCoords
         s.allCoords = [...s.allCoords, ...s.blockState.blockCoords.map((coord) => ({
             x: coord.x,
             y: coord.y,
             color: s.blockState.color,
-        }))];
-        // s.blockState.blockCoords.map((coords) => {s.allCoords = {...s.allCoords, {x: coords.x, y: coord.y, color: s.blockState.color}}})
-        //adds difficulty row to all coords
-        // s.blockState.blockCoords.map((coord) => {s.allCoords.push({x:coord.x, y:coord.y, color: s.blockState.color})});
-        console.log(s.totalPlaced+1, s.totalPlaced % Math.max(15-s.level , 2))
+         }))];
 
         //checks if row should be added on this block placement, interval between rows is affected by level, higher level = higher difficulty
         //because interval between rows being added is smaller. Minimum 2 block placements between rows being added
@@ -134,8 +141,7 @@ class BlockSave implements Action{
             : null))
         : null
 
-        //
-
+        //resets current block state and generates new block
         return {
         ...s,
         totalPlaced : s.totalPlaced += 1,

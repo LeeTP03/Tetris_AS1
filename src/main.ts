@@ -128,6 +128,18 @@ type State = {
   highScore: number;
 };
 
+type BlockState = {
+  x: number;
+  y: number;
+  rotation: number;
+  type: string;
+  height: number;
+  leftWidth: number;
+  rightWidth: number;
+  color: string;
+  blockCoords: readonly {x: number, y: number}[];
+};
+
 const initialBlockState: BlockState = {
   x: 4,
   y: -1,
@@ -153,17 +165,6 @@ const initialState: State = {
   highScore: 0,
 } as const;
 
-type BlockState = {
-  x: number;
-  y: number;
-  rotation: number;
-  type: string;
-  height: number;
-  leftWidth: number;
-  rightWidth: number;
-  color: string;
-  blockCoords: readonly {x: number, y: number}[];
-};
 
 
 /**
@@ -171,10 +172,10 @@ type BlockState = {
  *
  * @param s Current state
  * @returns Updated state
- */
-const tick = (s: State) => {
-  return s;
-};
+//  */
+// const tick = (s: State) => {
+//   return s;
+// };
 
 /** Rendering (side effects) */
 
@@ -284,7 +285,7 @@ export function main() {
     
     
     //creates a cube at the given coordinates with the given color for the given svg element
-    const createCube = (x:number ,y:number, color:string, svgblock : SVGGraphicsElement & HTMLElement = svg) => {
+    const createCube = (x:number ,y:number, color:string, svgblock : SVGGraphicsElement & HTMLElement) => {
       const cube = createSvgElement(svgblock.namespaceURI, "rect", {
         height: `${Block.HEIGHT}`,
         width: `${Block.WIDTH}`,
@@ -297,37 +298,44 @@ export function main() {
 
 
     //creates an OBlock at given blockState
-    const createOBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
-      createCube(blockState.x, blockState.y+1, "green", svgblock);
-      createCube(blockState.x + 1, blockState.y+1, "green", svgblock);
-      createCube(blockState.x , blockState.y + 2, "green", svgblock);
-      createCube(blockState.x + 1, blockState.y + 2 , "green", svgblock);
+    const createOBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+      blockState.color = "yellow";
+      
+      createCube(blockState.x, blockState.y+1, "yellow", svgblock);
+      createCube(blockState.x + 1, blockState.y+1, "yellow", svgblock);
+      createCube(blockState.x , blockState.y + 2, "yellow", svgblock);
+      createCube(blockState.x + 1, blockState.y + 2 , "yellow", svgblock);
       blockState.height = 2;
       blockState.leftWidth = 2;
       blockState.rightWidth = 1;
-      blockState.color = "green";
+      
       blockState.blockCoords = [{x: blockState.x, y: blockState.y+1}, {x: blockState.x + 1, y: blockState.y+1}, {x: blockState.x , y: blockState.y + 2}, {x: blockState.x + 1, y: blockState.y + 2}];
     };
 
     //creates an IBlock at given blockState
-    const createIBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createIBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
       const iBlockRotation = getBlockRotation("iBlock");
       const rotationState = iBlockRotation[blockState.rotation % iBlockRotation.length];
-      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
+      blockState.blockCoords = rotationState.map((cube) => ({x: blockState.x + cube.x, y: blockState.y + cube.y}));
+      blockState.color = "cyan";
+
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y, "blue", svgblock);
+        createCube(blockState.x + cube.x, blockState.y + cube.y, "cyan" , svgblock);
       });
+
       blockState.rotation % 2 == 0 
       ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 3) 
       : (blockState.height = 3, blockState.leftWidth = 1, blockState.rightWidth = 1)
-      blockState.color = "blue";
+      
     };
 
     //creates a TBlock at given blockState
-    const createTBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createTBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
       const tBlockRotation = getBlockRotation("tBlock");
       const rotationState = tBlockRotation[blockState.rotation % tBlockRotation.length];
       blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
+      blockState.color = "purple";
+
       rotationState.forEach((cube) => {
         createCube(blockState.x + cube.x, blockState.y + cube.y, "purple", svgblock);
       });
@@ -338,14 +346,16 @@ export function main() {
       : blockState.rotation % 4 == 2
       ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 2)
       : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
-      blockState.color = "purple";
+      
     };
 
     //creates an LBlock at given blockState
-    const createLBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createLBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
       const lBlockRotation = getBlockRotation("lBlock");
       const rotationState = lBlockRotation[blockState.rotation % lBlockRotation.length];
-      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
+      blockState.blockCoords = rotationState.map((cube) => ({x: blockState.x + cube.x, y: blockState.y + cube.y}));
+      blockState.color = "orange"
+
       rotationState.forEach((cube) => {
         createCube(blockState.x + cube.x, blockState.y + cube.y, "orange", svgblock);
       });
@@ -356,16 +366,17 @@ export function main() {
       : blockState.rotation % 4 == 2
       ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 2)
       : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
-      blockState.color = "orange";
     };
 
     //creates a JBlock at given blockState
-    const createJBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createJBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
       const jBlockRotation = getBlockRotation("jBlock");
       const rotationState = jBlockRotation[blockState.rotation % jBlockRotation.length];
-      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
+      blockState.blockCoords = rotationState.map((cube) => ({x: blockState.x + cube.x, y: blockState.y + cube.y}));
+      blockState.color = "blue";
+
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y, "cyan", svgblock);
+        createCube(blockState.x + cube.x, blockState.y + cube.y, "blue" , svgblock);
       });
       blockState.rotation % 4 == 0 
       ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2)
@@ -374,21 +385,21 @@ export function main() {
       : blockState.rotation % 4 == 2
       ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 2)
       : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
-      blockState.color = "cyan";
     };
 
     //creates a ZBlock at given blockState
-    const createZBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createZBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
       const zBlockRotation = getBlockRotation("zBlock");
       const rotationState = zBlockRotation[blockState.rotation % zBlockRotation.length];
       blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
+      blockState.color = "red";
+
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y, "yellow", svgblock);
+        createCube(blockState.x + cube.x, blockState.y + cube.y,"red", svgblock);
       });
       blockState.rotation % 2 == 0 
       ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2) 
       : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
-      blockState.color = "yellow";
     };
 
     //creates an SBlock at given blockState
@@ -396,13 +407,15 @@ export function main() {
       const sBlockRotation = getBlockRotation("sBlock");
       const rotationState = sBlockRotation[blockState.rotation % sBlockRotation.length];
       blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
+      blockState.color = "green";
+
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y, "red", svgblock);
+        createCube(blockState.x + cube.x, blockState.y + cube.y, "green" , svgblock);
       });
+      
       blockState.rotation % 2 == 0 
       ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2) 
       :(blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
-      blockState.color = "red";
     };
 
     //creates a static block to display preview and hold blocks
@@ -441,13 +454,12 @@ export function main() {
       //checks if a row is full and removes it if it is
       if (s.gameEnd == false){
         const dictionary = Tick.checkRowFull(s)
-
         Object.entries(dictionary).map((item) => {
-          item[1] == 10 ? s.allCoords = Tick.removeRow(s, parseInt(item[0])) : null})
+          item[1] == 10 ? s.allCoords = Tick.removeRow(s, parseInt(item[0])): null})
       }
 
       //increases level every 1000 score
-      Math.floor(s.score / 500) + 1 > s.level ? new IncreaseLevel().apply(s) : null;
+      Math.floor(s.score / (500)) + 1 > s.level ? new IncreaseLevel().apply(s) : null;
 
       //sets highscore if current score is higher
       s.score > s.highScore ? s.highScore = s.score : s.highScore = s.highScore;   
@@ -477,6 +489,5 @@ export function main() {
 if (typeof window !== "undefined") {
   window.onload = () => {
     main();
-
   };
 }
