@@ -16,11 +16,31 @@ import "./style.css";
 
 import { fromEvent, interval, merge, from } from "rxjs";
 import { map, filter, scan, take, takeWhile } from "rxjs/operators";
-import {Tick, MoveDown, MoveLeft, MoveRight, BlockSave, Rotate, HoldBlock, GameEnd, IncreaseLevel, AlterBoard,  ResetBoard} from "./state.ts"
-import type {Action} from "./state.ts"
+import {
+  Tick,
+  MoveDown,
+  MoveLeft,
+  MoveRight,
+  BlockSave,
+  Rotate,
+  HoldBlock,
+  GameEnd,
+  IncreaseLevel,
+  AlterBoard,
+  Utils,
+  ResetBoard,
+} from "./state.ts";
+import type { Action } from "./state.ts";
 
-export type {State}
-export {getRandBlock, initialBlockState, initialState, generateRandom, getBlockRotation}
+export type { State };
+export {
+  getRandBlock,
+  initialBlockState,
+  initialState,
+  generateRandom,
+  getBlockRotation,
+  Constants,
+};
 
 /** Constants */
 
@@ -35,6 +55,7 @@ const Constants = {
   TICK_RATE_MS: 500,
   GRID_WIDTH: 10,
   GRID_HEIGHT: 20,
+  BLOCKS_BEFORE_NEW_ROW: 15,
 } as const;
 
 const Block = {
@@ -42,23 +63,37 @@ const Block = {
   HEIGHT: Viewport.CANVAS_HEIGHT / Constants.GRID_HEIGHT,
 };
 
-
 /** User input */
 
 type Key = "KeyS" | "KeyA" | "KeyD" | "KeyW" | "Space" | "KeyR" | "KeyH";
 
 type Event = "keydown" | "keyup" | "keypress";
 
-type Blocks = "lBlock" | "tBlock" | "iBlock" | "oBlock" | "jBlock" | "sBlock" | "zBlock";
+type Blocks =
+  | "lBlock"
+  | "tBlock"
+  | "iBlock"
+  | "oBlock"
+  | "jBlock"
+  | "sBlock"
+  | "zBlock";
 
 /** Utility functions */
-const getRandBlock = (seed : number) => {
-  const blockTypes = ["lBlock", "tBlock", "iBlock", "oBlock", "jBlock", "sBlock", "zBlock"]
+const getRandBlock = (seed: number) => {
+  const blockTypes = [
+    "lBlock",
+    "tBlock",
+    "iBlock",
+    "oBlock",
+    "jBlock",
+    "sBlock",
+    "zBlock",
+  ];
   const rand = Math.floor(seed % blockTypes.length);
-  return blockTypes[rand] ;
-}
+  return blockTypes[rand];
+};
 
-const generateRandom = (seed : number) => {
+const generateRandom = (seed: number) => {
   const a = 1103515245;
   const c = 12345;
   const m = 2 ** 31;
@@ -67,58 +102,169 @@ const generateRandom = (seed : number) => {
 };
 
 //returns the rotation states for each block according to Nintendo's Tetris rotation system
-const getBlockRotation = (blockType : string) => {
-  const blockTypes = ["lBlock", "tBlock", "iBlock", "jBlock", "sBlock", "zBlock", "oBlock"]
-  
-  const zBlockRotation = [
-    [{x: 0, y: 1}, {x: 1, y: 1}, {x: 1, y: 2}, {x: 2, y: 2}],
-    [{x: 1, y: 1}, {x: 2, y: 1}, {x: 1, y: 2}, {x: 2, y: 0}]
-    ];
-  
-    const sBlockRotation = [
-      [{x: 0, y: 2}, {x: 1, y: 2}, {x: 1, y: 1}, {x: 2, y: 1}],
-      [{x: 1, y: 1}, {x: 2, y: 1}, {x: 2, y: 2}, {x: 1, y: 0}]
-    ];
-  
-    const iBlockRotation = [
-      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:3, y: 1}],
-      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:1, y: 3}]
-    ];
-  
-    const tBlockRotation = [
-      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:1, y: 2}],
-      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:0, y: 1}],
-      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:1, y: 0}],
-      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:2, y: 1}]
-    ];
-  
-    const lBlockRotation = [
-      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:2, y: 2}],
-      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:0, y: 2}],
-      [{x: 0, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x:2, y: 1}],
-      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:2, y: 0}]
-    ];
-  
-    const jBlockRotation = [
-      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 0, y: 2}, {x:2, y: 1}],
-      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:0, y: 0}],
-      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}, {x:2, y: 0}],
-      [{x: 1, y: 0}, {x: 1, y: 1}, {x: 1, y: 2}, {x:2, y: 2}],
-    ];
+const getBlockRotation = (blockType: string) => {
+  const blockTypes = [
+    "lBlock",
+    "tBlock",
+    "iBlock",
+    "jBlock",
+    "sBlock",
+    "zBlock",
+    "oBlock",
+  ];
 
-    const oBlockRotation = [
-      [{x: 0, y: 1}, {x: 1, y: 1}, {x: 0, y: 2}, {x:1, y: 2}],
-    ];
-    
-    const blockFunc = [lBlockRotation, tBlockRotation, iBlockRotation, jBlockRotation, sBlockRotation, zBlockRotation, oBlockRotation];
-    return blockFunc[blockTypes.indexOf(blockType)];
-  }
+  const zBlockRotation = [
+    [
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 2, y: 2 },
+    ],
+    [
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 1, y: 2 },
+      { x: 2, y: 0 },
+    ],
+  ];
+
+  const sBlockRotation = [
+    [
+      { x: 0, y: 2 },
+      { x: 1, y: 2 },
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+    ],
+    [
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 2, y: 2 },
+      { x: 1, y: 0 },
+    ],
+  ];
+
+  const iBlockRotation = [
+    [
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 3, y: 1 },
+    ],
+    [
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 1, y: 3 },
+    ],
+  ];
+
+  const tBlockRotation = [
+    [
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 1, y: 2 },
+    ],
+    [
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 0, y: 1 },
+    ],
+    [
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 1, y: 0 },
+    ],
+    [
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 2, y: 1 },
+    ],
+  ];
+
+  const lBlockRotation = [
+    [
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 2, y: 2 },
+    ],
+    [
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 0, y: 2 },
+    ],
+    [
+      { x: 0, y: 0 },
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+    ],
+    [
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 2, y: 0 },
+    ],
+  ];
+
+  const jBlockRotation = [
+    [
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 0, y: 2 },
+      { x: 2, y: 1 },
+    ],
+    [
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 0, y: 0 },
+    ],
+    [
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 2, y: 0 },
+    ],
+    [
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 2, y: 2 },
+    ],
+  ];
+
+  const oBlockRotation = [
+    [
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 0, y: 2 },
+      { x: 1, y: 2 },
+    ],
+  ];
+
+  const blockFunc = [
+    lBlockRotation,
+    tBlockRotation,
+    iBlockRotation,
+    jBlockRotation,
+    sBlockRotation,
+    zBlockRotation,
+    oBlockRotation,
+  ];
+  return blockFunc[blockTypes.indexOf(blockType)];
+};
 /** State processing */
 
 type State = {
   gameEnd: boolean;
-  totalPlaced : number;
-  allCoords: readonly {x: number, y: number, color: string}[];
+  totalPlaced: number;
+  allCoords: readonly { x: number; y: number; color: string }[];
   blockState: BlockState;
   nextBlock: string;
   holdBlock: string;
@@ -137,7 +283,7 @@ type BlockState = {
   leftWidth: number;
   rightWidth: number;
   color: string;
-  blockCoords: readonly {x: number, y: number}[];
+  blockCoords: readonly { x: number; y: number }[];
 };
 
 const initialBlockState: BlockState = {
@@ -147,7 +293,7 @@ const initialBlockState: BlockState = {
   height: 1,
   leftWidth: 1,
   rightWidth: 1,
-  type : getRandBlock(generateRandom(0)),
+  type: getRandBlock(generateRandom(0)),
   blockCoords: [],
   color: "",
 } as const;
@@ -155,7 +301,7 @@ const initialBlockState: BlockState = {
 const initialState: State = {
   gameEnd: false,
   time: 0,
-  totalPlaced : 0,
+  totalPlaced: 0,
   allCoords: [],
   blockState: initialBlockState,
   holdBlock: getRandBlock(generateRandom(2)),
@@ -164,8 +310,6 @@ const initialState: State = {
   level: 1,
   highScore: 0,
 } as const;
-
-
 
 /**
  * Updates the state by proceeding with one time step.
@@ -244,6 +388,7 @@ export function main() {
   const scoreText = document.querySelector("#scoreText") as HTMLElement;
   const highScoreText = document.querySelector("#highScoreText") as HTMLElement;
   const timeText = document.querySelector("#timeText") as HTMLElement;
+  const newRow = document.querySelector("#newRow") as HTMLElement;
 
   /** User input */
 
@@ -261,7 +406,6 @@ export function main() {
   // const next$ = fromKey("Space").pipe(map(() => new NextBlock()));
 
   /** Observables */
-  
 
   /** Determines the rate of time steps */
   const tick$ = interval(Constants.TICK_RATE_MS).pipe(
@@ -279,13 +423,21 @@ export function main() {
     // Add blocks to the main grid canvas
 
     //clears the svg so that blocks that have been drawn previously wont stay when we redraw
-    svg.querySelectorAll("rect").forEach((elem) => elem.getAttribute("id") == "gameOverRect" ? null : elem.remove());
+    svg
+      .querySelectorAll("rect")
+      .forEach((elem) =>
+        elem.getAttribute("id") == "gameOverRect" ? null : elem.remove()
+      );
     preview.innerHTML = "";
     hold.innerHTML = "";
-    
-    
+
     //creates a cube at the given coordinates with the given color for the given svg element
-    const createCube = (x:number ,y:number, color:string, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createCube = (
+      x: number,
+      y: number,
+      color: string,
+      svgblock: SVGGraphicsElement & HTMLElement
+    ) => {
       const cube = createSvgElement(svgblock.namespaceURI, "rect", {
         height: `${Block.HEIGHT}`,
         width: `${Block.WIDTH}`,
@@ -294,145 +446,293 @@ export function main() {
         style: `fill: ${color}`,
       });
       svgblock.appendChild(cube);
-    }
-
+    };
 
     //creates an OBlock at given blockState
-    const createOBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createOBlock = (
+      blockState: BlockState,
+      svgblock: SVGGraphicsElement & HTMLElement
+    ) => {
       blockState.color = "yellow";
-      
-      createCube(blockState.x, blockState.y+1, "yellow", svgblock);
-      createCube(blockState.x + 1, blockState.y+1, "yellow", svgblock);
-      createCube(blockState.x , blockState.y + 2, "yellow", svgblock);
-      createCube(blockState.x + 1, blockState.y + 2 , "yellow", svgblock);
+
+      createCube(blockState.x, blockState.y + 1, "yellow", svgblock);
+      createCube(blockState.x + 1, blockState.y + 1, "yellow", svgblock);
+      createCube(blockState.x, blockState.y + 2, "yellow", svgblock);
+      createCube(blockState.x + 1, blockState.y + 2, "yellow", svgblock);
       blockState.height = 2;
       blockState.leftWidth = 2;
       blockState.rightWidth = 1;
-      
-      blockState.blockCoords = [{x: blockState.x, y: blockState.y+1}, {x: blockState.x + 1, y: blockState.y+1}, {x: blockState.x , y: blockState.y + 2}, {x: blockState.x + 1, y: blockState.y + 2}];
+
+      blockState.blockCoords = [
+        { x: blockState.x, y: blockState.y + 1 },
+        { x: blockState.x + 1, y: blockState.y + 1 },
+        { x: blockState.x, y: blockState.y + 2 },
+        { x: blockState.x + 1, y: blockState.y + 2 },
+      ];
     };
 
     //creates an IBlock at given blockState
-    const createIBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createIBlock = (
+      blockState: BlockState,
+      svgblock: SVGGraphicsElement & HTMLElement
+    ) => {
       const iBlockRotation = getBlockRotation("iBlock");
-      const rotationState = iBlockRotation[blockState.rotation % iBlockRotation.length];
-      blockState.blockCoords = rotationState.map((cube) => ({x: blockState.x + cube.x, y: blockState.y + cube.y}));
+      const rotationState =
+        iBlockRotation[blockState.rotation % iBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({
+        x: blockState.x + cube.x,
+        y: blockState.y + cube.y,
+      }));
       blockState.color = "cyan";
 
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y, "cyan" , svgblock);
+        createCube(
+          blockState.x + cube.x,
+          blockState.y + cube.y,
+          "cyan",
+          svgblock
+        );
       });
 
-      blockState.rotation % 2 == 0 
-      ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 3) 
-      : (blockState.height = 3, blockState.leftWidth = 1, blockState.rightWidth = 1)
-      
+      blockState.rotation % 2 == 0
+        ? ((blockState.height = 1),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 3))
+        : ((blockState.height = 3),
+          (blockState.leftWidth = 1),
+          (blockState.rightWidth = 1));
     };
 
     //creates a TBlock at given blockState
-    const createTBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createTBlock = (
+      blockState: BlockState,
+      svgblock: SVGGraphicsElement & HTMLElement
+    ) => {
       const tBlockRotation = getBlockRotation("tBlock");
-      const rotationState = tBlockRotation[blockState.rotation % tBlockRotation.length];
-      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
+      const rotationState =
+        tBlockRotation[blockState.rotation % tBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({
+        x: s.blockState.x + cube.x,
+        y: s.blockState.y + cube.y,
+      }));
       blockState.color = "purple";
 
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y, "purple", svgblock);
+        createCube(
+          blockState.x + cube.x,
+          blockState.y + cube.y,
+          "purple",
+          svgblock
+        );
       });
-      blockState.rotation % 4 == 0 
-      ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2)
-      : blockState.rotation % 4 == 1  
-      ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 1)
-      : blockState.rotation % 4 == 2
-      ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 2)
-      : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
-      
+      blockState.rotation % 4 == 0
+        ? ((blockState.height = 2),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 2))
+        : blockState.rotation % 4 == 1
+        ? ((blockState.height = 2),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 1))
+        : blockState.rotation % 4 == 2
+        ? ((blockState.height = 1),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 2))
+        : ((blockState.height = 2),
+          (blockState.leftWidth = 1),
+          (blockState.rightWidth = 2));
     };
 
     //creates an LBlock at given blockState
-    const createLBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createLBlock = (
+      blockState: BlockState,
+      svgblock: SVGGraphicsElement & HTMLElement
+    ) => {
       const lBlockRotation = getBlockRotation("lBlock");
-      const rotationState = lBlockRotation[blockState.rotation % lBlockRotation.length];
-      blockState.blockCoords = rotationState.map((cube) => ({x: blockState.x + cube.x, y: blockState.y + cube.y}));
-      blockState.color = "orange"
+      const rotationState =
+        lBlockRotation[blockState.rotation % lBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({
+        x: blockState.x + cube.x,
+        y: blockState.y + cube.y,
+      }));
+      blockState.color = "orange";
 
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y, "orange", svgblock);
+        createCube(
+          blockState.x + cube.x,
+          blockState.y + cube.y,
+          "orange",
+          svgblock
+        );
       });
-      blockState.rotation % 4 == 0 
-      ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2)
-      : blockState.rotation % 4 == 1  
-      ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 1)
-      : blockState.rotation % 4 == 2
-      ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 2)
-      : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
+      blockState.rotation % 4 == 0
+        ? ((blockState.height = 2),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 2))
+        : blockState.rotation % 4 == 1
+        ? ((blockState.height = 2),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 1))
+        : blockState.rotation % 4 == 2
+        ? ((blockState.height = 1),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 2))
+        : ((blockState.height = 2),
+          (blockState.leftWidth = 1),
+          (blockState.rightWidth = 2));
     };
 
     //creates a JBlock at given blockState
-    const createJBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createJBlock = (
+      blockState: BlockState,
+      svgblock: SVGGraphicsElement & HTMLElement
+    ) => {
       const jBlockRotation = getBlockRotation("jBlock");
-      const rotationState = jBlockRotation[blockState.rotation % jBlockRotation.length];
-      blockState.blockCoords = rotationState.map((cube) => ({x: blockState.x + cube.x, y: blockState.y + cube.y}));
+      const rotationState =
+        jBlockRotation[blockState.rotation % jBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({
+        x: blockState.x + cube.x,
+        y: blockState.y + cube.y,
+      }));
       blockState.color = "blue";
 
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y, "blue" , svgblock);
+        createCube(
+          blockState.x + cube.x,
+          blockState.y + cube.y,
+          "blue",
+          svgblock
+        );
       });
-      blockState.rotation % 4 == 0 
-      ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2)
-      : blockState.rotation % 4 == 1  
-      ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 1)
-      : blockState.rotation % 4 == 2
-      ? (blockState.height = 1, blockState.leftWidth = 2, blockState.rightWidth = 2)
-      : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
+      blockState.rotation % 4 == 0
+        ? ((blockState.height = 2),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 2))
+        : blockState.rotation % 4 == 1
+        ? ((blockState.height = 2),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 1))
+        : blockState.rotation % 4 == 2
+        ? ((blockState.height = 1),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 2))
+        : ((blockState.height = 2),
+          (blockState.leftWidth = 1),
+          (blockState.rightWidth = 2));
     };
 
     //creates a ZBlock at given blockState
-    const createZBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createZBlock = (
+      blockState: BlockState,
+      svgblock: SVGGraphicsElement & HTMLElement
+    ) => {
       const zBlockRotation = getBlockRotation("zBlock");
-      const rotationState = zBlockRotation[blockState.rotation % zBlockRotation.length];
-      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
+      const rotationState =
+        zBlockRotation[blockState.rotation % zBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({
+        x: s.blockState.x + cube.x,
+        y: s.blockState.y + cube.y,
+      }));
       blockState.color = "red";
 
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y,"red", svgblock);
+        createCube(
+          blockState.x + cube.x,
+          blockState.y + cube.y,
+          "red",
+          svgblock
+        );
       });
-      blockState.rotation % 2 == 0 
-      ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2) 
-      : (blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
+      blockState.rotation % 2 == 0
+        ? ((blockState.height = 2),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 2))
+        : ((blockState.height = 2),
+          (blockState.leftWidth = 1),
+          (blockState.rightWidth = 2));
     };
 
     //creates an SBlock at given blockState
-    const createSBlock = (blockState: BlockState = initialBlockState, svgblock : SVGGraphicsElement & HTMLElement) => {
+    const createSBlock = (
+      blockState: BlockState = initialBlockState,
+      svgblock: SVGGraphicsElement & HTMLElement
+    ) => {
       const sBlockRotation = getBlockRotation("sBlock");
-      const rotationState = sBlockRotation[blockState.rotation % sBlockRotation.length];
-      blockState.blockCoords = rotationState.map((cube) => ({x: s.blockState.x + cube.x, y: s.blockState.y + cube.y}));
+      const rotationState =
+        sBlockRotation[blockState.rotation % sBlockRotation.length];
+      blockState.blockCoords = rotationState.map((cube) => ({
+        x: s.blockState.x + cube.x,
+        y: s.blockState.y + cube.y,
+      }));
       blockState.color = "green";
 
       rotationState.forEach((cube) => {
-        createCube(blockState.x + cube.x, blockState.y + cube.y, "green" , svgblock);
+        createCube(
+          blockState.x + cube.x,
+          blockState.y + cube.y,
+          "green",
+          svgblock
+        );
       });
-      
-      blockState.rotation % 2 == 0 
-      ? (blockState.height = 2, blockState.leftWidth = 2, blockState.rightWidth = 2) 
-      :(blockState.height = 2, blockState.leftWidth = 1, blockState.rightWidth = 2)
+
+      blockState.rotation % 2 == 0
+        ? ((blockState.height = 2),
+          (blockState.leftWidth = 2),
+          (blockState.rightWidth = 2))
+        : ((blockState.height = 2),
+          (blockState.leftWidth = 1),
+          (blockState.rightWidth = 2));
     };
 
     //creates a static block to display preview and hold blocks
-    const staticBlock = (blockState: BlockState, svgblock : SVGGraphicsElement & HTMLElement ) => {
-      const blockTypes = ["lBlock", "tBlock", "iBlock", "oBlock", "jBlock", "sBlock", "zBlock"]
-      const blockFunc = [createLBlock, createTBlock, createIBlock, createOBlock, createJBlock, createSBlock, createZBlock];
+    const staticBlock = (
+      blockState: BlockState,
+      svgblock: SVGGraphicsElement & HTMLElement
+    ) => {
+      const blockTypes = [
+        "lBlock",
+        "tBlock",
+        "iBlock",
+        "oBlock",
+        "jBlock",
+        "sBlock",
+        "zBlock",
+      ];
+      const blockFunc = [
+        createLBlock,
+        createTBlock,
+        createIBlock,
+        createOBlock,
+        createJBlock,
+        createSBlock,
+        createZBlock,
+      ];
       blockFunc[blockTypes.indexOf(blockState.type)](blockState, svgblock);
-    }
+    };
 
     //creates the current block from the state's blockState
-    const createBlock = (s : State) => {
-      const blockTypes = ["lBlock", "tBlock", "iBlock", "oBlock", "jBlock", "sBlock", "zBlock"]
-      const blockFunc = [createLBlock, createTBlock, createIBlock, createOBlock, createJBlock, createSBlock, createZBlock];
+    const createBlock = (s: State) => {
+      const blockTypes = [
+        "lBlock",
+        "tBlock",
+        "iBlock",
+        "oBlock",
+        "jBlock",
+        "sBlock",
+        "zBlock",
+      ];
+      const blockFunc = [
+        createLBlock,
+        createTBlock,
+        createIBlock,
+        createOBlock,
+        createJBlock,
+        createSBlock,
+        createZBlock,
+      ];
       blockFunc[blockTypes.indexOf(s.blockState.type)](s.blockState, svg);
-    }
+    };
     createBlock(s);
-    
+
     //creates all the cubes that currently exist in the allCoords array
     s.allCoords.map((coord) => {
       createCube(coord.x, coord.y, coord.color, svg);
@@ -441,41 +741,82 @@ export function main() {
     // console.log(s.hardBlock)
 
     //creates the preview and hold blocks
-    staticBlock({x: 2, y: 0, rotation: 0, type: s.nextBlock, height: 0, color: "", leftWidth: 0, rightWidth: 0, blockCoords: []}, preview)
-    staticBlock({x: 2, y: 0, rotation: 0, type: s.holdBlock, height: 0, color: "", leftWidth: 0, rightWidth: 0, blockCoords: []}, hold)
-    
+    staticBlock(
+      {
+        x: 2,
+        y: 0,
+        rotation: 0,
+        type: s.nextBlock,
+        height: 0,
+        color: "",
+        leftWidth: 0,
+        rightWidth: 0,
+        blockCoords: [],
+      },
+      preview
+    );
+    staticBlock(
+      {
+        x: 2,
+        y: 0,
+        rotation: 0,
+        type: s.holdBlock,
+        height: 0,
+        color: "",
+        leftWidth: 0,
+        rightWidth: 0,
+        blockCoords: [],
+      },
+      hold
+    );
   };
 
   const source$ = merge(tick$, left$, right$, down$, up$, reset$, hold$)
-    .pipe(scan((s: State, a: Action) => (a.apply(s)), initialState) 
-    )
+    .pipe(scan((s: State, a: Action) => a.apply(s), initialState))
     .subscribe((s: State) => {
-      
       //checks if a row is full and removes it if it is
-      if (s.gameEnd == false){
-        const dictionary = Tick.checkRowFull(s)
+      if (s.gameEnd == false) {
+        const dictionary = Utils.checkRowFull(s);
         Object.entries(dictionary).map((item) => {
-          item[1] == 10 ? s.allCoords = Tick.removeRow(s, parseInt(item[0])): null})
+          item[1] == 10
+            ? (s.allCoords = Utils.removeRow(s, parseInt(item[0])))
+            : null;
+        });
       }
 
       //increases level every 1000 score
-      Math.floor(s.score / (500)) + 1 > s.level ? new IncreaseLevel().apply(s) : null;
+      Math.floor(s.score / 500) + 1 > s.level
+        ? new IncreaseLevel().apply(s)
+        : null;
 
       //sets highscore if current score is higher
-      s.score > s.highScore ? s.highScore = s.score : s.highScore = s.highScore;   
-      
+      s.score > s.highScore
+        ? (s.highScore = s.score)
+        : (s.highScore = s.highScore);
+
       //re-renders board
       render(s);
 
       //checks if new block collides with existing blocks and if true then game ends
-      Tick.overlap(s) ? (s.gameEnd = true) : s.gameEnd = s.gameEnd;
-
+      Utils.overlap(s) ? (s.gameEnd = true) : (s.gameEnd = s.gameEnd);
 
       //display the level, score, highscore and time
       levelText.innerHTML = `${s.level}`;
       scoreText.innerHTML = `${s.score}`;
       highScoreText.innerHTML = `${s.highScore}`;
-      timeText.innerHTML = `${Math.floor(s.time/((60*2)))}:${Math.round(s.time)%60}`;
+      const minutes = `${Math.floor(s.time / (60 * 2))}`;
+      const seconds = `${Math.round(s.time) % 60}`;
+      timeText.innerHTML = `${minutes.padStart(2, "0")} : ${seconds.padStart(2,"0")}`;
+      newRow.innerHTML =
+        s.totalPlaced %
+          Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2) !=
+        0
+          ? `New row in: ${
+              Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2) -
+              (s.totalPlaced %
+                Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2))
+            } blocks`
+          : "NEW ROW COMING IN";
 
       if (s.gameEnd) {
         show(gameover);
@@ -485,7 +826,7 @@ export function main() {
     });
 }
 
-// The following simply runs your main function on window load.  Make sure to leave it in place. 
+// The following simply runs your main function on window load.  Make sure to leave it in place.
 if (typeof window !== "undefined") {
   window.onload = () => {
     main();
