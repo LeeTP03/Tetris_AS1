@@ -90,6 +90,7 @@ const getRandBlock = (seed: number) => {
   return blockTypes[rand];
 };
 
+//generates a random number using the given seed
 const generateRandom = (seed: number) => {
   const a = 1103515245;
   const c = 12345;
@@ -110,6 +111,7 @@ const getBlockRotation = (blockType: string) => {
     "oBlock",
   ];
 
+  //all block rotation states
   const zBlockRotation = [
     [
       { x: 0, y: 1 },
@@ -256,8 +258,9 @@ const getBlockRotation = (blockType: string) => {
   ];
   return blockFunc[blockTypes.indexOf(blockType)];
 };
-/** State processing */
 
+/** States */
+//Blueprint for Game State
 type State = Readonly<{
   gameEnd: boolean;
   totalPlaced: number;
@@ -271,6 +274,7 @@ type State = Readonly<{
   highScore: number;
 }>;
 
+//Blueprint for a block
 type BlockState = {
   x: number;
   y: number;
@@ -283,6 +287,7 @@ type BlockState = {
   blockCoords: readonly { x: number; y: number }[];
 };
 
+//initial block state
 const initialBlockState: BlockState = {
   x: 4,
   y: -1,
@@ -295,6 +300,7 @@ const initialBlockState: BlockState = {
   color: "",
 } as const;
 
+//initial game state
 const initialState: State = {
   gameEnd: false,
   time: 0,
@@ -307,16 +313,6 @@ const initialState: State = {
   level: 1,
   highScore: 0,
 } as const;
-
-/**
- * Updates the state by proceeding with one time step.
- *
- * @param s Current state
- * @returns Updated state
-//  */
-// const tick = (s: State) => {
-//   return s;
-// };
 
 /** Rendering (side effects) */
 
@@ -408,6 +404,8 @@ export function main() {
   const tick$ = interval(Constants.TICK_RATE_MS).pipe(
     map((elapsed) => new Tick(elapsed))
   );
+
+  const end$ = interval(100).pipe(map(() => new GameEnd()));
 
   /**
    * Renders the current state to the canvas.
@@ -735,8 +733,6 @@ export function main() {
       createCube(coord.x, coord.y, coord.color, svg);
     });
 
-    // console.log(s.hardBlock)
-
     //creates the preview and hold blocks
     staticBlock(
       {
@@ -768,26 +764,25 @@ export function main() {
     );
   };
 
-  const source$ = merge(tick$, left$, right$, down$, up$, reset$, hold$)
+  const source$ = merge(tick$, left$, right$, down$, up$, reset$, hold$, end$)
     .pipe(scan((s: State, a: Action) => a.apply(s), initialState))
     .subscribe((s: State) => {
-
       //re-renders board
       render(s);
 
-      //checks if new block collides with existing blocks and if true then game ends
-      Utils.overlap(s) ? (s = new GameEnd().apply(s)) : null;
-
-      //display the level, score, highscore and time
       levelText.innerHTML = `${s.level}`;
       scoreText.innerHTML = `${s.score}`;
       highScoreText.innerHTML = `${s.highScore}`;
       const minutes = `${Math.floor(s.time / (60 * 2))}`;
       const seconds = `${Math.round(s.time) % 60}`;
-      timeText.innerHTML = `${minutes.padStart(2, "0")} : ${seconds.padStart(2,"0")}`;
+      timeText.innerHTML = `${minutes.padStart(2, "0")} : ${seconds.padStart(
+        2,
+        "0"
+      )}`;
       newRow.innerHTML =
         s.totalPlaced %
-          Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2) != 0
+          Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2) !=
+        0
           ? `New row in: ${
               Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2) -
               (s.totalPlaced %
