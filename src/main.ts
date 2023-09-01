@@ -21,15 +21,10 @@ import {
   MoveDown,
   MoveLeft,
   MoveRight,
-  BlockSave,
   Rotate,
   HoldBlock,
   GameEnd,
-  IncreaseLevel,
-  AlterBoard,
   Utils,
-  IncreaseScore,
-  CheckRow,
   ResetBoard,
 } from "./state.ts";
 import type { Action } from "./state.ts";
@@ -776,18 +771,6 @@ export function main() {
   const source$ = merge(tick$, left$, right$, down$, up$, reset$, hold$)
     .pipe(scan((s: State, a: Action) => a.apply(s), initialState))
     .subscribe((s: State) => {
-
-
-      //checks if a row is full and removes it if it is
-      // if (s.gameEnd == false) {
-      //   s = new CheckRow().apply(s);
-      //   // const dictionary = Utils.checkRowFull(s);
-      //   // Object.entries(dictionary).map((item) => {
-      //   //   item[1] == 10
-      //   //     ? (s.allCoords = Utils.removeRow(s, parseInt(item[0])), s.score = s.score + 100 )
-      //   //     : null;
-      //   // });
-      // }
 
       //re-renders board
       render(s);

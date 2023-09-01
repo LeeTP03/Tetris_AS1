@@ -19,10 +19,7 @@ export {
   ResetBoard,
   HoldBlock,
   GameEnd,
-  IncreaseLevel,
-  AlterBoard,
   Utils,
-  IncreaseScore,
   CheckRow,
   reduce,
 };
@@ -57,41 +54,40 @@ class Tick implements Action {
 }
 
 class Utils {
+  //checks if a block is colliding with another block or the bottom of the board
   static collision = (s: State, x_amount: number, y_amount: number) => {
-    const truelist: boolean[] = s.blockState.blockCoords.map((coord) => {
-      return this.checkCoordinate(s, coord.x + x_amount, coord.y + y_amount);
-    });
-    return truelist.includes(true);
+    //checks if any of the blocks in the current controlled block is going to move into another block
+    //returns a list of booleans, if any of the booleans are true then the block is colliding
+    return s.blockState.blockCoords.some((coord) => 
+      this.checkCoordinate(s, coord.x + x_amount, coord.y + y_amount)
+    );
   };
 
+  //checks if a given coordinate is in the allCoords array
   static checkCoordinate = (s: State, coord_x: number, coord_y: number) => {
-    const truelist: boolean[] = s.allCoords.map(
+    //checks if the coordinate is in the allCoords array
+    return s.allCoords.some(
       (coord) => coord.x == coord_x && coord.y == coord_y
     );
-    return truelist.includes(true);
   };
 
-  static checkCoords = (
-    coords: readonly { x: number; y: number }[],
-    allCoords: readonly { x: number; y: number }[]
-  ) =>
-    coords.some((coord) =>
-      allCoords.some((coord2) => coord.x === coord2.x && coord.y === coord2.y)
-    );
-
+  //checks if a given coordinate is out of bounds
   static checkBoundaries = (coords: { x: number; y: number }[]) =>
     coords.some((coord) => coord.x < 0 || coord.x > 9 || coord.y > 19);
 
+  //checks if current block is overlapping with another block or a given set of coordinates are going to collide with a cube or be out of bounds
   static overlap = (
     s: State,
     new_coords: { x: number; y: number }[] | null = null
   ) =>
     new_coords == null
+      //if no coordinates are given, check if the current block is overlapping with another block
       ? s.blockState.blockCoords
           .map((coord: { x: number; y: number }) =>
             this.checkCoordinate(s, coord.x, coord.y)
           )
           .includes(true)
+      //if coordinates are given, check if the given coordinates are going to collide with a cube or be out of bounds
       : new_coords
           .map(
             (coord) =>
@@ -100,7 +96,9 @@ class Utils {
           )
           .includes(true);
 
-  static checkRowFull = (s: State) => {
+  //returns a dictionary of rows with the number of blocks in each row
+  static checkRowBlockCount = (s: State) => {
+    //creates a dictionary with the number of blocks in each row
     const coordRowDict = s.allCoords.reduce(
       (acc: { [key: number]: number }, coord) => {
         return { ...acc, [coord.y]: (acc[coord.y] || 0) + 1 };
@@ -110,32 +108,28 @@ class Utils {
     return coordRowDict;
   };
 
+  //removes a given row from the board
   static removeRow = (
     s: State,
     row: number
   ): { x: number; y: number; color: string }[] => {
-    const new_coords = s.allCoords.filter((coord) => {
+
+    //filters the unwanted row out of the allCoords array
+    const newCoords = s.allCoords.filter((coord) => {
       return coord.y != row;
     });
-    const new_A = new_coords.map((coords) =>
+
+    //shifts all the rows above the removed row down by 1
+    const newCoordPosition = newCoords.map((coords) =>
       coords.y < row
         ? { x: coords.x, y: (coords.y += 1), color: coords.color }
         : coords
     );
-
-    s = new IncreaseScore().apply(s);
-    console.log(new_A);
-    return new_A;
+    return newCoordPosition;
   };
 
-  static remove = (s: State, row: number) => {
-    const newc = s.allCoords.filter((coord) => {
-      return coord.y != row;
-    });
-    return newc;
-  };
-
-  static addRow = (s: State) => {
+  //shifts all rows on the board up by 1
+  static shiftBoardUp = (s: State) => {
     s.allCoords.map((coords) => {
       coords.y -= 1;
       return coords;
@@ -143,6 +137,7 @@ class Utils {
   };
 }
 
+//Action class to manipulate the state to move the current block left
 class MoveLeft implements Action {
   apply = (s: State) => ({
     ...s,
@@ -157,6 +152,7 @@ class MoveLeft implements Action {
   });
 }
 
+//Action class to manipulate the state to move the current block right
 class MoveRight implements Action {
   apply = (s: State) => ({
     ...s,
@@ -170,6 +166,7 @@ class MoveRight implements Action {
   });
 }
 
+//Action class to manipulate the state to move the current block down
 class MoveDown implements Action {
   apply = (s: State) => {
     return s.blockState.y + s.blockState.height >= 19 ||
@@ -189,6 +186,7 @@ class MoveDown implements Action {
   };
 }
 
+//Action class to manipulate the state to rotate the current block
 class Rotate implements Action {
   apply = (s: State) => {
     const blockRotation = getBlockRotation(s.blockState.type);
@@ -211,11 +209,14 @@ class Rotate implements Action {
   };
 }
 
+//Action class to manipulate the state to save the current block, make a new live block,
+//check if row is compeleted and if so remove it, and generate a new extra difficulty row if needed 
 class BlockSave implements Action {
   apply = (s: State) => {
     //generate random number for empty block on extra difficulty row
     const rand = generateRandom(s.time) % 8;
 
+    //adds the current block to the allCoords array
     s.blockState.blockCoords.map((coord) => {
       s = new AddCoord({
         x: coord.x,
@@ -224,10 +225,10 @@ class BlockSave implements Action {
       }).apply(s);
     });
 
-    //checks if row should be added on Utils block placement, interval between rows is affected by level, higher level = higher difficulty
+    //checks if row should be added on block placement, interval between rows is affected by level, higher level = higher difficulty
     //because interval between rows being added is smaller. Minimum 2 block placements between rows being added
     s.totalPlaced % Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2) == 0
-      ? (Utils.addRow(s),
+      ? (Utils.shiftBoardUp(s),
         Array.from(Array(10).keys()).map((num) =>
           num != rand
             ? (s = new AddCoord({ x: num, y: 19, color: "grey" }).apply(s))
@@ -255,6 +256,7 @@ class BlockSave implements Action {
   };
 }
 
+//Action class to manipulate the state to reset the board
 class ResetBoard implements Action {
   apply(s: State): State {
     return {
@@ -275,6 +277,7 @@ class ResetBoard implements Action {
   }
 }
 
+//Action class to manipulate the state to swap the current block with the held block
 class HoldBlock implements Action {
   apply(s: State): State {
     const new_coords = getBlockRotation(s.holdBlock)[0].map((coord) => ({
@@ -282,6 +285,7 @@ class HoldBlock implements Action {
       y: coord.y + s.blockState.y,
     }));
 
+    //checks if swapped with the held block if it is overlapping with another block
     return Utils.overlap(s, new_coords)
       ? s
       : {
@@ -292,32 +296,14 @@ class HoldBlock implements Action {
   }
 }
 
-class IncreaseLevel implements Action {
-  apply(s: State): State {
-    return { ...s, level: s.level + 1 };
-  }
-}
-
-class AlterBoard implements Action {
-  constructor(public readonly row: number) {}
-  apply(s: State): State {
-    const new_coords = Utils.removeRow(s, this.row);
-    return { ...s, allCoords: new_coords };
-  }
-}
-
+//Action class to manipulate the state to chaneg if the game has ended
 class GameEnd implements Action {
   apply(s: State): State {
     return { ...s, gameEnd: true };
   }
 }
 
-class IncreaseScore implements Action {
-  apply(s: State): State {
-    return { ...s, score: s.score + 100 };
-  }
-}
-
+//Action class to manipulate the state to add a coordinate to the allCoords array
 class AddCoord implements Action {
   constructor(public readonly coord: { x: number; y: number; color: string }) {}
   apply(s: State): State {
@@ -325,21 +311,17 @@ class AddCoord implements Action {
   }
 }
 
-class ChangeAllCoords implements Action {
-  constructor(
-    public readonly coords: { x: number; y: number; color: string }[]
-  ) {}
-  apply(s: State): State {
-    return { ...s, allCoords: this.coords };
-  }
-}
-
+//Action class to manipulate the state to check if a row is full and remove it
 class CheckRow implements Action {
   apply(s: State): State {
-    const coordRowDict = Utils.checkRowFull(s);
+    const coordRowDict = Utils.checkRowBlockCount(s);
+    
+    //get all rows that are full
     const fullRows = Object.keys(coordRowDict).filter(
       (key) => coordRowDict[parseInt(key)] === 10
     );
+
+    //for each full row, remove it and add score by 100
     fullRows.map(
       (row) => (s = { ...s, allCoords: Utils.removeRow(s, parseInt(row)), score: s.score + 100})
     );
