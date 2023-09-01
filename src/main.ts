@@ -28,6 +28,8 @@ import {
   IncreaseLevel,
   AlterBoard,
   Utils,
+  IncreaseScore,
+  CheckRow,
   ResetBoard,
 } from "./state.ts";
 import type { Action } from "./state.ts";
@@ -261,7 +263,7 @@ const getBlockRotation = (blockType: string) => {
 };
 /** State processing */
 
-type State = {
+type State = Readonly<{
   gameEnd: boolean;
   totalPlaced: number;
   allCoords: readonly { x: number; y: number; color: string }[];
@@ -272,7 +274,7 @@ type State = {
   score: number;
   level: number;
   highScore: number;
-};
+}>;
 
 type BlockState = {
   x: number;
@@ -774,31 +776,24 @@ export function main() {
   const source$ = merge(tick$, left$, right$, down$, up$, reset$, hold$)
     .pipe(scan((s: State, a: Action) => a.apply(s), initialState))
     .subscribe((s: State) => {
+
+
       //checks if a row is full and removes it if it is
-      if (s.gameEnd == false) {
-        const dictionary = Utils.checkRowFull(s);
-        Object.entries(dictionary).map((item) => {
-          item[1] == 10
-            ? (s.allCoords = Utils.removeRow(s, parseInt(item[0])))
-            : null;
-        });
-      }
-
-      //increases level every 1000 score
-      Math.floor(s.score / 500) + 1 > s.level
-        ? new IncreaseLevel().apply(s)
-        : null;
-
-      //sets highscore if current score is higher
-      s.score > s.highScore
-        ? (s.highScore = s.score)
-        : (s.highScore = s.highScore);
+      // if (s.gameEnd == false) {
+      //   s = new CheckRow().apply(s);
+      //   // const dictionary = Utils.checkRowFull(s);
+      //   // Object.entries(dictionary).map((item) => {
+      //   //   item[1] == 10
+      //   //     ? (s.allCoords = Utils.removeRow(s, parseInt(item[0])), s.score = s.score + 100 )
+      //   //     : null;
+      //   // });
+      // }
 
       //re-renders board
       render(s);
 
       //checks if new block collides with existing blocks and if true then game ends
-      Utils.overlap(s) ? (s.gameEnd = true) : (s.gameEnd = s.gameEnd);
+      Utils.overlap(s) ? (s = new GameEnd().apply(s)) : null;
 
       //display the level, score, highscore and time
       levelText.innerHTML = `${s.level}`;
@@ -809,14 +804,13 @@ export function main() {
       timeText.innerHTML = `${minutes.padStart(2, "0")} : ${seconds.padStart(2,"0")}`;
       newRow.innerHTML =
         s.totalPlaced %
-          Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2) !=
-        0
+          Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2) != 0
           ? `New row in: ${
               Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2) -
               (s.totalPlaced %
                 Math.max(Constants.BLOCKS_BEFORE_NEW_ROW - s.level, 2))
             } blocks`
-          : "NEW ROW COMING IN";
+          : "NEW ROW INCOMING";
 
       if (s.gameEnd) {
         show(gameover);
