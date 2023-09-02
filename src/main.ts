@@ -480,7 +480,7 @@ export function main() {
       }));
       blockState.color = "cyan";
 
-      rotationState.forEach((cube) => {
+      rotationState.map((cube) => {
         createCube(
           blockState.x + cube.x,
           blockState.y + cube.y,
@@ -512,7 +512,7 @@ export function main() {
       }));
       blockState.color = "purple";
 
-      rotationState.forEach((cube) => {
+      rotationState.map((cube) => {
         createCube(
           blockState.x + cube.x,
           blockState.y + cube.y,
@@ -551,7 +551,7 @@ export function main() {
       }));
       blockState.color = "orange";
 
-      rotationState.forEach((cube) => {
+      rotationState.map((cube) => {
         createCube(
           blockState.x + cube.x,
           blockState.y + cube.y,
@@ -590,7 +590,7 @@ export function main() {
       }));
       blockState.color = "blue";
 
-      rotationState.forEach((cube) => {
+      rotationState.map((cube) => {
         createCube(
           blockState.x + cube.x,
           blockState.y + cube.y,
@@ -629,7 +629,7 @@ export function main() {
       }));
       blockState.color = "red";
 
-      rotationState.forEach((cube) => {
+      rotationState.map((cube) => {
         createCube(
           blockState.x + cube.x,
           blockState.y + cube.y,
@@ -660,7 +660,7 @@ export function main() {
       }));
       blockState.color = "green";
 
-      rotationState.forEach((cube) => {
+      rotationState.map((cube) => {
         createCube(
           blockState.x + cube.x,
           blockState.y + cube.y,

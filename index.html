@@ -4,6 +4,7 @@
   </head>
   <body>
     <h1>Tetris</h1>
+    <div class="flex row">
     <main id="main" class="flex row">
       <div class="flex col">
         <svg id="svgCanvas">
@@ -47,6 +48,16 @@
         </div>
       </div>
     </main>
+    <div class="controls">
+      <p style="text-align: center; ">Controls</p>
+      <p>W : Rotate Clockwise</p>
+      <p>A : Move Left</p>
+      <p>S : Move Down</p>
+      <p>D : Move Right</p>
+      <p>H : Hold block</p>
+      <p>R : Reset Game</p>
+    </div>
+  </div>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

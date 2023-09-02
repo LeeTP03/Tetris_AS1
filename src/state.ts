@@ -326,7 +326,6 @@ class CheckRow implements Action {
 
     //for each full row, remove it and add score by 100
     fullRows.map((row) => {
-      console.log(s.gameEnd);
       s = {
         ...s,
         allCoords: Utils.removeRow(s, parseInt(row)),
